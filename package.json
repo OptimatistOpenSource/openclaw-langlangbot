@@ -1,0 +1,15 @@
+{
+  "name": "langlangbot-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/connector",
+    "packages/openclaw"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

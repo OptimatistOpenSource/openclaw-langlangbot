@@ -1,0 +1,290 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import { access, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  createLanglangbotSidecar,
+  formatError,
+  type LanglangbotAccount,
+  type SidecarLog,
+} from "./config.js";
+
+type ManagedEntry = {
+  child: ChildProcess;
+  bind: string;
+  refCount: number;
+};
+
+const managedByUrl = new Map<string, ManagedEntry>();
+const startInFlight = new Map<string, Promise<void>>();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function parseSidecarBind(sidecarUrl: string): string {
+  const parsed = new URL(sidecarUrl);
+  const host = parsed.hostname || "127.0.0.1";
+  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "4317");
+  return `${host}:${port}`;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadEnvFile(filePath: string): Promise<Record<string, string>> {
+  const text = await readFile(filePath, "utf8");
+  const env: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
+async function resolveLanglangbotBinary(explicit?: string): Promise<string> {
+  if (explicit?.trim()) {
+    const binary = explicit.trim();
+    if (!(await fileExists(binary))) {
+      throw new Error(`langlangbot binary not found: ${binary}`);
+    }
+    return binary;
+  }
+
+  const fromEnv = process.env.LANGLANGBOT_BINARY?.trim();
+  if (fromEnv && (await fileExists(fromEnv))) {
+    return fromEnv;
+  }
+
+  const inPath = await fileExists("/usr/local/bin/langlangbot")
+    ? "/usr/local/bin/langlangbot"
+    : await fileExists(`${homedir()}/.local/bin/langlangbot`)
+      ? `${homedir()}/.local/bin/langlangbot`
+      : await fileExists(`${homedir()}/.cargo/bin/langlangbot`)
+        ? `${homedir()}/.cargo/bin/langlangbot`
+        : null;
+  if (inPath) {
+    return inPath;
+  }
+
+  const pluginRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "..",
+  );
+  const release = path.join(pluginRoot, "target", "release", "langlangbot");
+  const debug = path.join(pluginRoot, "target", "debug", "langlangbot");
+  if (await fileExists(release)) {
+    return release;
+  }
+  if (await fileExists(debug)) {
+    return debug;
+  }
+
+  throw new Error(
+    "langlangbot binary not found. Install via https://optimatist.ai/langlangbot/install.sh, set channels.langlangbot.sidecarBinary, or set LANGLANGBOT_BINARY.",
+  );
+}
+
+async function buildChildEnv(account: LanglangbotAccount): Promise<NodeJS.ProcessEnv> {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  env.LANGLANGBOT_BIND = parseSidecarBind(account.sidecarUrl);
+  if (account.pluginToken) {
+    env.LANGLANGBOT_PLUGIN_TOKEN = account.pluginToken;
+  }
+
+  const envPath =
+    account.sidecarEnvPath?.trim() ||
+    (await fileExists(path.join(homedir(), ".langlangbot", "env")))
+      ? path.join(homedir(), ".langlangbot", "env")
+      : undefined;
+  if (envPath) {
+    const fileEnv = await loadEnvFile(envPath);
+    for (const [key, value] of Object.entries(fileEnv)) {
+      env[key] = value;
+    }
+  }
+
+  return env;
+}
+
+async function waitForHealth(
+  account: LanglangbotAccount,
+  timeoutMs: number,
+): Promise<void> {
+  const sidecar = createLanglangbotSidecar(account);
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "unknown";
+  while (Date.now() < deadline) {
+    try {
+      await sidecar.health();
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      await sleep(400);
+    }
+  }
+  throw new Error(
+    `LangLangBot did not become healthy at ${account.sidecarUrl} within ${timeoutMs}ms: ${lastError}`,
+  );
+}
+
+async function isSidecarHealthy(account: LanglangbotAccount): Promise<boolean> {
+  const sidecar = createLanglangbotSidecar(account);
+  try {
+    await sidecar.health();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function pipeChildLogs(child: ChildProcess, log?: SidecarLog, prefix = "langlangbot"): void {
+  child.stdout?.on("data", (chunk: Buffer) => {
+    const text = chunk.toString("utf8").trim();
+    if (text) {
+      log?.info?.(`[${prefix}] ${text}`);
+    }
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    const text = chunk.toString("utf8").trim();
+    if (text) {
+      log?.warn?.(`[${prefix}] ${text}`);
+    }
+  });
+}
+
+/**
+ * Ensure LangLangBot is listening at account.sidecarUrl.
+ * When autoStartSidecar is true (default), spawns the binary if /health is down.
+ */
+export async function ensureLanglangbotSidecar(
+  account: LanglangbotAccount,
+  log?: SidecarLog,
+): Promise<{ startedByPlugin: boolean }> {
+  if (await isSidecarHealthy(account)) {
+    return { startedByPlugin: false };
+  }
+
+  if (!account.autoStartSidecar) {
+    throw new Error(
+      `LangLangBot is not reachable at ${account.sidecarUrl}. Start it manually or set channels.langlangbot.autoStartSidecar to true.`,
+    );
+  }
+
+  const urlKey = account.sidecarUrl;
+  const existing = managedByUrl.get(urlKey);
+  if (existing) {
+    existing.refCount += 1;
+    await waitForHealth(account, 15_000);
+    return { startedByPlugin: true };
+  }
+
+  let inflight = startInFlight.get(urlKey);
+  if (!inflight) {
+    inflight = startManagedSidecar(account, log);
+    startInFlight.set(urlKey, inflight);
+  }
+  try {
+    await inflight;
+  } finally {
+    if (startInFlight.get(urlKey) === inflight) {
+      startInFlight.delete(urlKey);
+    }
+  }
+
+  const entry = managedByUrl.get(urlKey);
+  if (entry) {
+    entry.refCount += 1;
+  }
+
+  return { startedByPlugin: true };
+}
+
+async function startManagedSidecar(
+  account: LanglangbotAccount,
+  log?: SidecarLog,
+): Promise<void> {
+  const urlKey = account.sidecarUrl;
+  if (managedByUrl.has(urlKey)) {
+    return;
+  }
+
+  const binary = await resolveLanglangbotBinary(account.sidecarBinary);
+  const env = await buildChildEnv(account);
+  const bind = env.LANGLANGBOT_BIND ?? parseSidecarBind(account.sidecarUrl);
+
+  log?.info?.(`[langlangbot] starting ${binary} (LANGLANGBOT_BIND=${bind})`);
+
+  const child = spawn(binary, [], {
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: false,
+  });
+
+  if (!child.pid) {
+    throw new Error("failed to spawn langlangbot process");
+  }
+
+  pipeChildLogs(child, log);
+
+  child.on("exit", (code, signal) => {
+    managedByUrl.delete(urlKey);
+    if (code !== 0 && code !== null) {
+      log?.warn?.(
+        `[langlangbot] process exited code=${code} signal=${signal ?? ""}`,
+      );
+    }
+  });
+
+  managedByUrl.set(urlKey, { child, bind, refCount: 0 });
+
+  await waitForHealth(account, account.sidecarStartTimeoutMs);
+  log?.info?.(`[langlangbot] healthy at ${account.sidecarUrl}`);
+}
+
+/** Stop a LangLangBot process started by this plugin when the last gateway account releases it. */
+export function releaseLanglangbotSidecar(
+  account: LanglangbotAccount,
+  log?: SidecarLog,
+): void {
+  const entry = managedByUrl.get(account.sidecarUrl);
+  if (!entry) {
+    return;
+  }
+  entry.refCount -= 1;
+  if (entry.refCount > 0) {
+    return;
+  }
+  managedByUrl.delete(account.sidecarUrl);
+  log?.info?.(`[langlangbot] stopping managed process (bind ${entry.bind})`);
+  try {
+    entry.child.kill("SIGTERM");
+  } catch (err) {
+    log?.warn?.(`[langlangbot] failed to stop process: ${formatError(err)}`);
+  }
+}

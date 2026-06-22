@@ -1,0 +1,41 @@
+name: Publish npm
+
+on:
+  push:
+    tags:
+      - "npm-v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Verify npm package tree
+        run: |
+          set -euo pipefail
+          if rg -l 'Cargo\.toml' packages/connector packages/openclaw \
+            --glob '!**/node_modules/**' --glob '!**/dist/**' 2>/dev/null; then
+            echo "Unexpected Cargo.toml under npm packages"
+            exit 1
+          fi
+          if rg -q 'file:\.\./connector' packages/openclaw/package.json; then
+            echo "openclaw must use semver @optimatist/langlangbot-connector, not file:../connector"
+            exit 1
+          fi
+          for pkg in packages/connector packages/openclaw; do
+            test -f "$pkg/LICENSE"
+            node -e "const p=require('./$pkg/package.json'); if(!p.license) process.exit(1)"
+          done
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --workspace=@optimatist/langlangbot-connector --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --workspace=@optimatist/langlangbot-openclaw --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

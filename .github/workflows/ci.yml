@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Verify npm package tree
+        run: |
+          set -euo pipefail
+          if rg -l 'Cargo\.toml' packages/connector packages/openclaw \
+            --glob '!**/node_modules/**' --glob '!**/dist/**' 2>/dev/null; then
+            echo "Unexpected Cargo.toml under npm packages"
+            exit 1
+          fi
+          if rg -q 'file:\.\./connector' packages/openclaw/package.json; then
+            echo "openclaw must use semver @optimatist/langlangbot-connector, not file:../connector"
+            exit 1
+          fi
+          for pkg in packages/connector packages/openclaw; do
+            test -f "$pkg/LICENSE"
+            node -e "const p=require('./$pkg/package.json'); if(!p.license) process.exit(1)"
+          done
+      - run: npm ci
+      - run: npm run build

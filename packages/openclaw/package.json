@@ -1,0 +1,67 @@
+{
+  "name": "@optimatist/langlangbot-openclaw",
+  "version": "0.1.0",
+  "description": "OpenClaw channel plugin for LangLangBot (Operator chat and approvals)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OptimatistOpenSource/openclaw-langlangbot.git",
+    "directory": "packages/openclaw"
+  },
+  "homepage": "https://github.com/OptimatistOpenSource/openclaw-langlangbot",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "dependencies": {
+    "@optimatist/langlangbot-connector": "0.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5",
+    "openclaw": ">=2026.5.7",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.7"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "npm run build --prefix ../connector && esbuild index.ts setup-entry.ts --bundle --platform=node --format=esm --outdir=dist --external:openclaw --external:openclaw/*",
+    "prepack": "npm run build"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "setupEntry": "./setup-entry.ts",
+    "runtimeExtensions": ["./dist/index.js"],
+    "runtimeSetupEntry": "./dist/setup-entry.js",
+    "channel": {
+      "id": "langlangbot",
+      "label": "LangLangBot",
+      "selectionLabel": "LangLangBot",
+      "detailLabel": "LangLangBot",
+      "docsLabel": "langlangbot",
+      "blurb": "Chat with the LangLang Operator app and deliver exec/plugin approvals to the same client.",
+      "systemImage": "message.fill"
+    },
+    "compat": {
+      "pluginApi": ">=2026.5.7"
+    },
+    "build": {
+      "openclawVersion": "2026.5.7"
+    }
+  },
+  "files": [
+    "dist/**",
+    "openclaw.plugin.json",
+    "skills/**",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "id": "langlangbot",
+  "kind": "channel",
+  "channels": ["langlangbot"],
+  "name": "LangLangBot",
+  "description": "OpenClaw channel for LangLangBot — chat and approvals for the LangLang Operator app",
+  "enabledByDefault": false,
+  "skills": ["./skills"],
+  "contracts": {
+    "tools": ["langlangbot_connection_current"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "sidecarUrl": {
+        "type": "string",
+        "default": "https://127.0.0.1:4317"
+      },
+      "pluginToken": {
+        "type": "string"
+      },
+      "autoStartSidecar": {
+        "type": "boolean",
+        "default": true
+      },
+      "sidecarBinary": {
+        "type": "string"
+      },
+      "sidecarEnvPath": {
+        "type": "string"
+      },
+      "sidecarStartTimeoutMs": {
+        "type": "number",
+        "default": 30000
+      },
+      "sidecarInsecureTls": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  },
+  "channelConfigs": {
+    "langlangbot": {
+      "label": "LangLangBot",
+      "description": "Connect OpenClaw to LangLangBot for Operator chat, streaming replies, and exec/plugin approvals",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "sidecarUrl": {
+            "type": "string",
+            "default": "https://127.0.0.1:4317"
+          },
+          "pluginToken": { "type": "string" },
+          "autoStartSidecar": { "type": "boolean", "default": true },
+          "sidecarBinary": { "type": "string" },
+          "sidecarEnvPath": { "type": "string" },
+          "sidecarStartTimeoutMs": { "type": "number", "default": 30000 },
+          "sidecarInsecureTls": { "type": "boolean", "default": true },
+          "surfaceId": { "type": "string" },
+          "streaming": { "type": "boolean", "default": true }
+        }
+      }
+    }
+  }
+}

@@ -34,7 +34,7 @@ export function registerLanglangbotTools(api: OpenClawPluginApi): void {
       name: "langlangbot_connection_current",
       label: "LangLangBot connection",
       description:
-        "Query how the Operator app is currently connected to LangLangBot (局域网 or 专用网络). " +
+        "Query how the Operator app is currently connected to LangLangBot (LAN or dedicated network). " +
         "Use when the user asks how they are connected.",
       parameters: connectionCurrentParameters,
       async execute(_toolCallId, params) {

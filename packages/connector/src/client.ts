@@ -103,6 +103,32 @@ export type PluginConnectionEndpoint = {
   port: number;
 };
 
+export type ManagementRequestEvent = {
+  request_id: string;
+  account_id: string;
+  runtime_name: string;
+  conversation_id: string;
+  operation: "status" | "models" | "set_model" | string;
+  model?: string;
+  created_at: string;
+};
+
+export type ManagementResultInput = {
+  ok: boolean;
+  result?: Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+  };
+};
+
+export type AgentStatusQuery = {
+  conversationId: string;
+  sessionToken?: string;
+  accountId?: string;
+  runtimeName?: string;
+};
+
 export type PluginConnectionCurrentResponse =
   | {
       conversation_id: string;
@@ -123,6 +149,15 @@ export type PluginConnectionCurrentResponse =
       status: "error";
       message: string;
     };
+
+export type AgentRuntimeStatusUpdate = {
+  connected: boolean;
+  agentRuntimeReady: boolean;
+  runtimeName?: string;
+  accountId?: string;
+  reason?: string | null;
+  lastDispatchError?: string | null;
+};
 
 export type GatewayEvent =
   | {
@@ -579,6 +614,24 @@ export class LanglangbotSidecar {
     }
   }
 
+  async updateAgentRuntimeStatus(input: AgentRuntimeStatusUpdate): Promise<void> {
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/plugin/runtime/status`, {
+      method: "PUT",
+      headers: this.headers(),
+      body: JSON.stringify({
+        connected: input.connected,
+        agent_runtime_ready: input.agentRuntimeReady,
+        runtime_name: input.runtimeName,
+        account_id: input.accountId,
+        reason: input.reason,
+        last_dispatch_error: input.lastDispatchError,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`updateAgentRuntimeStatus failed: ${response.status}`);
+    }
+  }
+
   async registerApprovalPending(
     input: RegisterPendingApprovalInput,
   ): Promise<{ approval_id: string; status: string }> {
@@ -678,5 +731,141 @@ export class LanglangbotSidecar {
       throw new Error(`sendMessage failed: ${response.status}`);
     }
     return (await response.json()) as { message_id: string };
+  }
+
+  subscribeManagementEvents(
+    params: { accountId?: string } | undefined,
+    onEvent: (evt: ManagementRequestEvent) => void,
+    onError?: (err: Error) => void,
+  ): Unsubscribe {
+    const query = new URLSearchParams();
+    if (params?.accountId) {
+      query.set("account_id", params.accountId);
+    }
+    const suffix = query.size > 0 ? `?${query}` : "";
+    return startReconnectingSse({
+      errorLabel: "management SSE failed",
+      onError,
+      connect: (signal) =>
+        this.fetchImpl(`${this.baseUrl}/v1/plugin/management/events${suffix}`, {
+          headers: this.headers({ accept: "text/event-stream" }),
+          signal,
+        }),
+      onData: (data) => {
+        try {
+          const parsed = JSON.parse(data) as ManagementRequestEvent;
+          if (
+            typeof parsed.request_id !== "string" ||
+            typeof parsed.account_id !== "string" ||
+            typeof parsed.runtime_name !== "string" ||
+            typeof parsed.conversation_id !== "string" ||
+            typeof parsed.operation !== "string"
+          ) {
+            return;
+          }
+          onEvent(parsed);
+        } catch (err) {
+          if (err instanceof SyntaxError) {
+            return;
+          }
+          throw err;
+        }
+      },
+    });
+  }
+
+  async postManagementResult(
+    requestId: string,
+    body: ManagementResultInput,
+  ): Promise<void> {
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/v1/plugin/management/${encodeURIComponent(requestId)}/result`,
+      {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`postManagementResult failed: ${response.status}`);
+    }
+  }
+
+  private sessionHeaders(sessionToken?: string): Record<string, string> {
+    const headers = this.headers();
+    if (sessionToken) {
+      headers["x-langlangbot-session-token"] = sessionToken;
+    }
+    return headers;
+  }
+
+  async getAgentStatus(params: AgentStatusQuery): Promise<Record<string, unknown>> {
+    const query = new URLSearchParams({
+      conversation_id: params.conversationId,
+    });
+    if (params.accountId) {
+      query.set("account_id", params.accountId);
+    }
+    if (params.runtimeName) {
+      query.set("runtime_name", params.runtimeName);
+    }
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/v1/agent/status?${query}`,
+      {
+        method: "GET",
+        headers: this.sessionHeaders(params.sessionToken),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`getAgentStatus failed: ${response.status}`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  async listAgentModels(params: AgentStatusQuery): Promise<Record<string, unknown>> {
+    const query = new URLSearchParams({
+      conversation_id: params.conversationId,
+    });
+    if (params.accountId) {
+      query.set("account_id", params.accountId);
+    }
+    if (params.runtimeName) {
+      query.set("runtime_name", params.runtimeName);
+    }
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/v1/agent/models?${query}`,
+      {
+        method: "GET",
+        headers: this.sessionHeaders(params.sessionToken),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`listAgentModels failed: ${response.status}`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  async setAgentModel(params: {
+    conversationId: string;
+    model: string;
+    sessionToken?: string;
+    accountId?: string;
+    runtimeName?: string;
+  }): Promise<Record<string, unknown>> {
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/agent/model`, {
+      method: "POST",
+      headers: this.sessionHeaders(params.sessionToken),
+      body: JSON.stringify({
+        conversation_id: params.conversationId,
+        model: params.model,
+        session_token: params.sessionToken,
+        account_id: params.accountId,
+        runtime_name: params.runtimeName,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`setAgentModel failed: ${response.status}`);
+    }
+    return (await response.json()) as Record<string, unknown>;
   }
 }

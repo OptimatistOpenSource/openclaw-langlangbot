@@ -1,5 +1,6 @@
 export {
   LanglangbotSidecar,
+  type AgentStatusQuery,
   type ApprovalAction,
   type ApprovalDecisionPoll,
   type ApprovalPluginEvent,
@@ -14,6 +15,9 @@ export {
   type HealthStatus,
   type InboundMessage,
   type LanglangbotSidecarOptions,
+  type AgentRuntimeStatusUpdate,
+  type ManagementRequestEvent,
+  type ManagementResultInput,
   type OpenClawApprovalDecision,
   type PluginConnectionCurrentResponse,
   type PluginConnectionEndpoint,

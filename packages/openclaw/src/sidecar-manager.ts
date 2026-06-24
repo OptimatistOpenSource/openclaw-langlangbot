@@ -31,6 +31,12 @@ export function parseSidecarBind(sidecarUrl: string): string {
   return `${host}:${port}`;
 }
 
+export function defaultSidecarBind(sidecarUrl: string): string {
+  const parsed = new URL(sidecarUrl);
+  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "4317");
+  return `0.0.0.0:${port}`;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
@@ -79,15 +85,15 @@ async function resolveLanglangbotBinary(explicit?: string): Promise<string> {
     return fromEnv;
   }
 
-  const inPath = await fileExists("/usr/local/bin/langlangbot")
-    ? "/usr/local/bin/langlangbot"
-    : await fileExists(`${homedir()}/.local/bin/langlangbot`)
-      ? `${homedir()}/.local/bin/langlangbot`
-      : await fileExists(`${homedir()}/.cargo/bin/langlangbot`)
-        ? `${homedir()}/.cargo/bin/langlangbot`
-        : null;
-  if (inPath) {
-    return inPath;
+  const candidates = [
+    "/usr/local/bin/langlangbot",
+    `${homedir()}/.local/bin/langlangbot`,
+    `${homedir()}/.cargo/bin/langlangbot`,
+  ];
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
   }
 
   const pluginRoot = path.resolve(
@@ -112,16 +118,15 @@ async function resolveLanglangbotBinary(explicit?: string): Promise<string> {
 
 async function buildChildEnv(account: LanglangbotAccount): Promise<NodeJS.ProcessEnv> {
   const env: NodeJS.ProcessEnv = { ...process.env };
-  env.LANGLANGBOT_BIND = parseSidecarBind(account.sidecarUrl);
+  env.LANGLANGBOT_BIND ||= defaultSidecarBind(account.sidecarUrl);
   if (account.pluginToken) {
     env.LANGLANGBOT_PLUGIN_TOKEN = account.pluginToken;
   }
 
+  const defaultEnvPath = path.join(homedir(), ".langlangbot", "env");
+  const explicitEnvPath = account.sidecarEnvPath?.trim();
   const envPath =
-    account.sidecarEnvPath?.trim() ||
-    (await fileExists(path.join(homedir(), ".langlangbot", "env")))
-      ? path.join(homedir(), ".langlangbot", "env")
-      : undefined;
+    explicitEnvPath || ((await fileExists(defaultEnvPath)) ? defaultEnvPath : undefined);
   if (envPath) {
     const fileEnv = await loadEnvFile(envPath);
     for (const [key, value] of Object.entries(fileEnv)) {
@@ -236,7 +241,7 @@ async function startManagedSidecar(
 
   const binary = await resolveLanglangbotBinary(account.sidecarBinary);
   const env = await buildChildEnv(account);
-  const bind = env.LANGLANGBOT_BIND ?? parseSidecarBind(account.sidecarUrl);
+  const bind = env.LANGLANGBOT_BIND ?? defaultSidecarBind(account.sidecarUrl);
 
   log?.info?.(`[langlangbot] starting ${binary} (LANGLANGBOT_BIND=${bind})`);
 

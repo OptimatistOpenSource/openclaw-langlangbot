@@ -50,7 +50,7 @@ Additional approval sources (for example enterprise gateway intents) use the sam
 
 When the user asks how they are connected to LangLangBot (LAN vs dedicated network), call **`langlangbot_connection_current`** before answering. Do not guess from generic networking knowledge or suggest ping/nslookup on the Agent host.
 
-The tool reads the Operator app's observed ingress path for the active conversation. Answer with the returned `transport` value (`局域网` or `专用网络`). Use `remote_addr` for the Operator device and `matched_endpoint` for the LangLangBot listen address on that path.
+The tool reads the Operator app's observed ingress path for the active conversation. Answer with the returned `transport` value (`LAN` or `dedicated network`). Use `remote_addr` for the Operator device and `matched_endpoint` for the LangLangBot listen address on that path.
 
 ## Operator reminders (cron)
 

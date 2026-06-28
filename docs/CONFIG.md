@@ -12,7 +12,7 @@ Minimal `~/.openclaw/openclaw.json`:
   "channels": {
     "langlangbot": {
       "enabled": true,
-      "sidecarUrl": "https://127.0.0.1:4317",
+      "sidecarUrl": "https://127.0.0.1:9528",
       "autoStartSidecar": true,
       "streaming": true
     }
@@ -28,7 +28,7 @@ Minimal `~/.openclaw/openclaw.json`:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `sidecarUrl` | `https://127.0.0.1:4317` | LangLangBot HTTPS listen URL |
+| `sidecarUrl` | `https://127.0.0.1:9528` | LangLangBot HTTPS listen URL |
 | `autoStartSidecar` | `true` | Start sidecar when the gateway enables this channel |
 | `sidecarBinary` | (auto-detect) | Path to `langlangbot` binary |
 | `sidecarEnvPath` | `~/.langlangbot/env` | Env file for sidecar (surface id from pairing) |

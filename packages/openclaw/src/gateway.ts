@@ -18,8 +18,6 @@ import {
   ensureLanglangbotSidecar,
   releaseLanglangbotSidecar,
 } from "./sidecar-manager.js";
-import { startManagementBridge } from "./management-bridge.js";
-import { buildLanglangbotSessionKey } from "./session-key.js";
 
 type InboundHandle = {
   conversationId: string;
@@ -80,12 +78,6 @@ export async function startLanglangbotGateway(
     );
   }
 
-  const unsubscribeManagement = startManagementBridge({
-    sidecar,
-    account,
-    log: ctx.log,
-  });
-
   const unsubscribe = sidecar.subscribeInbound(
     (evt) => {
       void handleInbound(
@@ -126,7 +118,6 @@ export async function startLanglangbotGateway(
   await new Promise<void>((resolve) => {
     const onAbort = () => {
       unsubscribe();
-      unsubscribeManagement();
       approvalNativeLease?.dispose();
       void reportAgentRuntimeStatus(sidecar, ctx, {
         ready: false,
@@ -166,6 +157,7 @@ async function handleInbound(
   const runtime = readiness.runtime;
   const account = ctx.account;
   const cfg = ctx.cfg;
+  const agentId = "default";
   const to = conversationTarget(inbound.conversationId);
   const verifiedSurfaceId = resolveVerifiedOperatorSurface({
     operatorSurfaceId: inbound.operatorSurfaceId,
@@ -179,15 +171,10 @@ async function handleInbound(
   const ownerAllowFrom = verifiedSurfaceId
     ? [openClawOwnerAllowFrom(verifiedSurfaceId)]
     : undefined;
-  const sessionKey = buildLanglangbotSessionKey({
-    accountId: account.accountId,
-    conversationId: inbound.conversationId,
-  });
+  const sessionKey = `agent:${agentId}:langlangbot:${account.accountId}:direct:${to}`;
 
   try {
-    const storePath = runtime.session.resolveStorePath(cfg.session?.store, {
-      agentId: "default",
-    });
+    const storePath = runtime.session.resolveStorePath(cfg.session?.store, { agentId });
     const ctxPayload = runtime.reply.finalizeInboundContext({
       Body: inbound.text,
       RawBody: inbound.text,

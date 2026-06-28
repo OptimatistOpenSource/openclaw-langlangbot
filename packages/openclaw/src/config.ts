@@ -1,6 +1,8 @@
 import { LanglangbotSidecar } from "@optimatist/langlangbot-connector";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 
+import { DEFAULT_SIDECAR_URL } from "./defaults.js";
+
 export type LanglangbotAccount = {
   accountId: string;
   enabled: boolean;
@@ -33,7 +35,7 @@ export function resolveLanglangbotAccount(
   const sidecarUrl =
     (typeof accountSection.sidecarUrl === "string" && accountSection.sidecarUrl) ||
     (typeof section?.sidecarUrl === "string" && section.sidecarUrl) ||
-    "https://127.0.0.1:4317";
+    DEFAULT_SIDECAR_URL;
   const pluginToken =
     (typeof accountSection.pluginToken === "string" && accountSection.pluginToken) ||
     (typeof section?.pluginToken === "string" ? section.pluginToken : undefined);

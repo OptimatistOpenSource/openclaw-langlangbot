@@ -10,6 +10,7 @@ import {
   type LanglangbotAccount,
   type SidecarLog,
 } from "./config.js";
+import { DEFAULT_SIDECAR_PORT } from "./defaults.js";
 
 type ManagedEntry = {
   child: ChildProcess;
@@ -24,17 +25,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function resolveSidecarPort(parsed: URL): string {
+  return parsed.port || (parsed.protocol === "https:" ? "443" : DEFAULT_SIDECAR_PORT);
+}
+
 export function parseSidecarBind(sidecarUrl: string): string {
   const parsed = new URL(sidecarUrl);
   const host = parsed.hostname || "127.0.0.1";
-  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "4317");
-  return `${host}:${port}`;
+  return `${host}:${resolveSidecarPort(parsed)}`;
 }
 
 export function defaultSidecarBind(sidecarUrl: string): string {
-  const parsed = new URL(sidecarUrl);
-  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "4317");
-  return `0.0.0.0:${port}`;
+  return `0.0.0.0:${resolveSidecarPort(new URL(sidecarUrl))}`;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

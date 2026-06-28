@@ -1,0 +1,2 @@
+export const DEFAULT_SIDECAR_PORT = "9528";
+export const DEFAULT_SIDECAR_URL = `https://127.0.0.1:${DEFAULT_SIDECAR_PORT}`;

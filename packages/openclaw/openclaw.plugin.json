@@ -15,7 +15,7 @@
     "properties": {
       "sidecarUrl": {
         "type": "string",
-        "default": "https://127.0.0.1:4317"
+        "default": "https://127.0.0.1:9528"
       },
       "pluginToken": {
         "type": "string"
@@ -51,7 +51,7 @@
           "enabled": { "type": "boolean" },
           "sidecarUrl": {
             "type": "string",
-            "default": "https://127.0.0.1:4317"
+            "default": "https://127.0.0.1:9528"
           },
           "pluginToken": { "type": "string" },
           "autoStartSidecar": { "type": "boolean", "default": true },

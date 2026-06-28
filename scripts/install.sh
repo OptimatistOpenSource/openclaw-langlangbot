@@ -31,7 +31,7 @@ Usage:
   install.sh [--version vX.Y.Z[-rc.N]] [--install-bin DIR]
 
 Options:
-  --version VERSION      Install a specific release, including RC tags such as v0.1.8-rc.1.
+  --version VERSION      Install a specific release, including RC tags such as v0.1.8-rc.2.
   --install-bin DIR      Install langlangbot binary into DIR.
   --release-base URL     Override the binary release base URL.
   --npm-pkg SPEC         Override the OpenClaw npm package spec.
@@ -45,8 +45,8 @@ Environment:
 
 Examples:
   curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash
-  curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash -s -- --version v0.1.8-rc.1
-  curl -fsSL https://optimatist.ai/langlangbot/install.sh | LANGLANGBOT_VERSION=v0.1.8-rc.1 bash
+  curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash -s -- --version v0.1.8-rc.2
+  curl -fsSL https://optimatist.ai/langlangbot/install.sh | LANGLANGBOT_VERSION=v0.1.8-rc.2 bash
 USAGE
 }
 
@@ -102,7 +102,7 @@ parse_args() {
 
 resolve_install_targets() {
   if [[ -n "$LANGLANGBOT_VERSION" ]]; then
-    [[ "$LANGLANGBOT_VERSION" == v* ]] || die "--version must start with v, e.g. v0.1.8-rc.1"
+    [[ "$LANGLANGBOT_VERSION" == v* ]] || die "--version must start with v, e.g. v0.1.8-rc.2"
   fi
 
   if [[ -z "$RELEASE_BASE" ]]; then
@@ -129,7 +129,8 @@ detect_artifact() {
   case "$os/$arch" in
     Linux/x86_64|Linux/amd64) echo "langlangbot-linux-x64" ;;
     Linux/aarch64|Linux/arm64) echo "langlangbot-linux-arm64" ;;
-    *) die "unsupported platform $os/$arch (Linux x64/arm64 only in v1)" ;;
+    Darwin/arm64|Darwin/aarch64) echo "langlangbot-macos-arm64" ;;
+    *) die "unsupported platform $os/$arch (Linux x64/arm64 and macOS arm64 supported in v1)" ;;
   esac
 }
 
@@ -193,7 +194,7 @@ cfg.plugins.entries.langlangbot = { enabled: true };
 cfg.channels ??= {};
 cfg.channels.langlangbot ??= {};
 cfg.channels.langlangbot.enabled = true;
-cfg.channels.langlangbot.sidecarUrl ??= "https://127.0.0.1:4317";
+cfg.channels.langlangbot.sidecarUrl ??= "https://127.0.0.1:9528";
 cfg.channels.langlangbot.sidecarBinary ??= path.join(home, ".local", "bin", "langlangbot");
 cfg.channels.langlangbot.autoStartSidecar = true;
 fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n");

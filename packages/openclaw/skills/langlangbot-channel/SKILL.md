@@ -6,7 +6,7 @@ LangLangBot is platform-agnostic: the Operator app may be iOS, Android, or anoth
 
 ## Setup
 
-1. **Install** sidecar + OpenClaw plugin on the Agent host (Linux x64/arm64):
+1. **Install** sidecar + OpenClaw plugin on the Agent host (Linux x64/arm64 or macOS arm64):
 
 ```bash
 curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash
@@ -27,7 +27,7 @@ Confirm the 6-character code and TLS fingerprint in the Operator app when prompt
   channels: {
     langlangbot: {
       enabled: true,
-      sidecarUrl: "https://127.0.0.1:4317",
+      sidecarUrl: "https://127.0.0.1:9528",
       autoStartSidecar: true,
       pluginToken: "<optional shared secret>",
       sidecarBinary: "/path/to/langlangbot",

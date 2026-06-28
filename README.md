@@ -14,7 +14,7 @@ Requires **Node.js ≥20** and **OpenClaw ≥2026.5.7**.
 
 ## Install
 
-Sidecar binary and OpenClaw plugin (Linux):
+Sidecar binary and OpenClaw plugin (Linux and macOS Apple Silicon):
 
 ```bash
 curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash

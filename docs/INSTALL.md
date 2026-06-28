@@ -1,9 +1,9 @@
 # Install
 
-## One-line setup (Linux)
+## One-line setup (Linux and macOS)
 
 Installs the LangLangBot sidecar binary and this OpenClaw plugin, then configures
-`~/.openclaw/openclaw.json`:
+`~/.openclaw/openclaw.json` (default sidecar URL `https://127.0.0.1:9528`):
 
 ```bash
 curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash

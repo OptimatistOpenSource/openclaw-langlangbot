@@ -3,7 +3,7 @@
 OpenClaw channel plugin for LangLangBot — Operator chat, streaming replies, and exec/plugin
 approvals.
 
-Connects OpenClaw to a local LangLangBot sidecar at `https://127.0.0.1:4317` (default).
+Connects OpenClaw to a local LangLangBot sidecar at `https://127.0.0.1:9528` (default).
 
 ## Install
 

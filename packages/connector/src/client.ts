@@ -606,6 +606,21 @@ export class LanglangbotSidecar {
     }
   }
 
+  /**
+   * Request a controlled sidecar reload (graceful shutdown; supervisor respawns).
+   * Reserved for OpenClaw plugin explicit reload; `langlangbot pair` uses the Rust CLI
+   * HTTP client instead and does not call this method today.
+   */
+  async reloadSidecar(): Promise<void> {
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/plugin/runtime/reload`, {
+      method: "POST",
+      headers: this.headers(),
+    });
+    if (response.status !== 202) {
+      throw new Error(`reloadSidecar failed: ${response.status}`);
+    }
+  }
+
   async registerApprovalPending(
     input: RegisterPendingApprovalInput,
   ): Promise<{ approval_id: string; status: string }> {

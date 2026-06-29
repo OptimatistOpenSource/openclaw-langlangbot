@@ -6,7 +6,7 @@ LangLangBot is platform-agnostic: the Operator app may be iOS, Android, or anoth
 
 ## Setup
 
-1. **Install** sidecar + OpenClaw plugin on the Agent host (Linux x64/arm64 or macOS arm64):
+1. **Install** sidecar + OpenClaw plugin on the Agent host (Linux x64/arm64):
 
 ```bash
 curl -fsSL https://optimatist.ai/langlangbot/install.sh | bash

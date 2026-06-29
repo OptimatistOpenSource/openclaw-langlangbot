@@ -16,6 +16,7 @@ type ManagedEntry = {
   child: ChildProcess;
   bind: string;
   refCount: number;
+  account: LanglangbotAccount;
 };
 
 const managedByUrl = new Map<string, ManagedEntry>();
@@ -170,6 +171,35 @@ async function isSidecarHealthy(account: LanglangbotAccount): Promise<boolean> {
   }
 }
 
+async function restartManagedSidecarAfterExit(
+  account: LanglangbotAccount,
+  refCount: number,
+  log?: SidecarLog,
+): Promise<void> {
+  if (refCount <= 0) {
+    return;
+  }
+  await sleep(400);
+  if (managedByUrl.has(account.sidecarUrl)) {
+    return;
+  }
+  if (await isSidecarHealthy(account)) {
+    return;
+  }
+  try {
+    log?.info?.("[langlangbot] restarting managed sidecar after exit");
+    await startManagedSidecar(account, log);
+    const entry = managedByUrl.get(account.sidecarUrl);
+    if (entry) {
+      entry.refCount = refCount;
+    }
+  } catch (err) {
+    log?.warn?.(
+      `[langlangbot] restart after exit failed: ${formatError(err)}`,
+    );
+  }
+}
+
 function pipeChildLogs(child: ChildProcess, log?: SidecarLog, prefix = "langlangbot"): void {
   child.stdout?.on("data", (chunk: Buffer) => {
     const text = chunk.toString("utf8").trim();
@@ -260,15 +290,23 @@ async function startManagedSidecar(
   pipeChildLogs(child, log);
 
   child.on("exit", (code, signal) => {
+    const entry = managedByUrl.get(urlKey);
     managedByUrl.delete(urlKey);
     if (code !== 0 && code !== null) {
       log?.warn?.(
         `[langlangbot] process exited code=${code} signal=${signal ?? ""}`,
       );
+    } else {
+      log?.info?.(
+        `[langlangbot] managed process exited code=${code ?? "null"} signal=${signal ?? ""}`,
+      );
+    }
+    if (entry) {
+      void restartManagedSidecarAfterExit(entry.account, entry.refCount, log);
     }
   });
 
-  managedByUrl.set(urlKey, { child, bind, refCount: 0 });
+  managedByUrl.set(urlKey, { child, bind, refCount: 0, account });
 
   await waitForHealth(account, account.sidecarStartTimeoutMs);
   log?.info?.(`[langlangbot] healthy at ${account.sidecarUrl}`);

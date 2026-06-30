@@ -1,13 +1,3 @@
-export type GatewayEventType =
-  | "conversation_opened"
-  | "user_message"
-  | "assistant_delta"
-  | "assistant_message"
-  | "tool_call"
-  | "cancelled"
-  | "approval_requested"
-  | "approval_resolved";
-
 export type ApprovalAction = {
   decision: string;
   label: string;
@@ -133,59 +123,6 @@ export type AgentRuntimeStatusUpdate = {
   lastDispatchError?: string | null;
 };
 
-export type GatewayEvent =
-  | {
-      type: "conversation_opened";
-      conversation_id: string;
-      created_at: string;
-    }
-  | {
-      type: "user_message";
-      message_id: string;
-      text: string;
-      received_at: string;
-    }
-  | {
-      type: "assistant_delta";
-      text: string;
-      created_at: string;
-    }
-  | {
-      type: "assistant_message";
-      message_id: string;
-      text: string;
-      created_at: string;
-    }
-  | {
-      type: "tool_call";
-      tool_call_id: string;
-      tool_name: string;
-      summary: string;
-      created_at: string;
-    }
-  | {
-      type: "cancelled";
-      reason?: string | null;
-      cancelled_at: string;
-    }
-  | {
-      type: "approval_requested";
-      approval_id: string;
-      kind: string;
-      title: string;
-      description?: string | null;
-      actions: ApprovalAction[];
-      expires_at: string;
-      metadata?: Record<string, unknown>;
-      created_at: string;
-    }
-  | {
-      type: "approval_resolved";
-      approval_id: string;
-      decision?: string | null;
-      resolved_at: string;
-    };
-
 export type InboundMessage = {
   conversationId: string;
   messageId: string;
@@ -245,88 +182,6 @@ function createFetchImpl(opts: LanglangbotSidecarOptions): typeof fetch {
     return createInsecureTlsFetch();
   }
   return fetch;
-}
-
-function parseGatewayEvent(raw: unknown): GatewayEvent | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-  const event = raw as Record<string, unknown>;
-  const type = event.type;
-  if (typeof type !== "string") {
-    return null;
-  }
-  switch (type) {
-    case "conversation_opened":
-      return {
-        type,
-        conversation_id: String(event.conversation_id),
-        created_at: String(event.created_at),
-      };
-    case "user_message":
-      return {
-        type,
-        message_id: String(event.message_id),
-        text: String(event.text),
-        received_at: String(event.received_at),
-      };
-    case "assistant_delta":
-      return {
-        type,
-        text: String(event.text),
-        created_at: String(event.created_at),
-      };
-    case "assistant_message":
-      return {
-        type,
-        message_id: String(event.message_id),
-        text: String(event.text),
-        created_at: String(event.created_at),
-      };
-    case "tool_call":
-      return {
-        type,
-        tool_call_id: String(event.tool_call_id),
-        tool_name: String(event.tool_name),
-        summary: String(event.summary),
-        created_at: String(event.created_at),
-      };
-    case "cancelled":
-      return {
-        type,
-        reason:
-          event.reason == null ? null : String(event.reason),
-        cancelled_at: String(event.cancelled_at),
-      };
-    case "approval_requested":
-      return {
-        type,
-        approval_id: String(event.approval_id),
-        kind: String(event.kind),
-        title: String(event.title),
-        description:
-          event.description == null ? undefined : String(event.description),
-        actions: Array.isArray(event.actions)
-          ? (event.actions as ApprovalAction[])
-          : [],
-        expires_at: String(event.expires_at),
-        metadata:
-          event.metadata && typeof event.metadata === "object"
-            ? (event.metadata as Record<string, unknown>)
-            : undefined,
-        created_at: String(event.created_at),
-      };
-    case "approval_resolved":
-      return {
-        type,
-        approval_id: String(event.approval_id),
-        decision:
-          event.decision == null ? undefined : String(event.decision),
-        resolved_at: String(event.resolved_at),
-      };
-    default:
-      return null;
-  }
 }
 
 function parseApprovalPluginEvent(raw: unknown): ApprovalPluginEvent | null {
@@ -545,35 +400,6 @@ export class LanglangbotSidecar {
     });
   }
 
-  subscribeConversationEvents(
-    conversationId: string,
-    onEvent: (evt: GatewayEvent) => void,
-    onError?: (err: Error) => void,
-  ): Unsubscribe {
-    return startReconnectingSse({
-      errorLabel: "conversation SSE failed",
-      onError,
-      connect: (signal) =>
-        this.fetchImpl(`${this.baseUrl}/v1/conversations/${conversationId}/events`, {
-          headers: this.headers({ accept: "text/event-stream" }),
-          signal,
-        }),
-      onData: (data) => {
-        try {
-          const parsed = parseGatewayEvent(JSON.parse(data));
-          if (parsed) {
-            onEvent(parsed);
-          }
-        } catch (err) {
-          if (err instanceof SyntaxError) {
-            return;
-          }
-          throw err;
-        }
-      },
-    });
-  }
-
   async sendDelta(conversationId: string, text: string): Promise<void> {
     const response = await this.fetchImpl(
       `${this.baseUrl}/v1/conversations/${conversationId}/outbound/delta`,
@@ -603,21 +429,6 @@ export class LanglangbotSidecar {
     });
     if (!response.ok) {
       throw new Error(`updateAgentRuntimeStatus failed: ${response.status}`);
-    }
-  }
-
-  /**
-   * Request a controlled sidecar reload (graceful shutdown; supervisor respawns).
-   * Reserved for OpenClaw plugin explicit reload; `langlangbot pair` uses the Rust CLI
-   * HTTP client instead and does not call this method today.
-   */
-  async reloadSidecar(): Promise<void> {
-    const response = await this.fetchImpl(`${this.baseUrl}/v1/plugin/runtime/reload`, {
-      method: "POST",
-      headers: this.headers(),
-    });
-    if (response.status !== 202) {
-      throw new Error(`reloadSidecar failed: ${response.status}`);
     }
   }
 

@@ -9,8 +9,6 @@ export {
   OpenClawApprovalKind,
   isOpenClawApprovalKind,
   normalizeApprovalKind,
-  type GatewayEvent,
-  type GatewayEventType,
   type HealthStatus,
   type InboundMessage,
   type LanglangbotSidecarOptions,

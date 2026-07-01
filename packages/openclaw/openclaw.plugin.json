@@ -7,7 +7,10 @@
   "enabledByDefault": false,
   "skills": ["./skills"],
   "contracts": {
-    "tools": ["langlangbot_connection_current"]
+    "tools": [
+      "langlangbot_connection_current",
+      "langlangbot_operator_runtime_status"
+    ]
   },
   "configSchema": {
     "type": "object",

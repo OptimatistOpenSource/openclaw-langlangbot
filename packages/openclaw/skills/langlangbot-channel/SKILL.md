@@ -52,6 +52,20 @@ When the user asks how they are connected to LangLangBot (LAN vs dedicated netwo
 
 The tool reads the Operator app's observed ingress path for the active conversation. Answer with the returned `transport` value (`LAN` or `dedicated network`). Use `remote_addr` for the Operator device and `matched_endpoint` for the LangLangBot listen address on that path.
 
+## Operator runtime context
+
+<!-- FIXME(openclaw-upstream): Remove this section once OpenClaw session_status uses the correct
+     context window and token stats (openclaw/openclaw#92760, openclaw/openclaw#70692). -->
+
+When the Operator asks about context usage, context window size, current model, or any stat shown in the LangLang app runtime bar:
+
+1. Call **`langlangbot_operator_runtime_status`** first.
+2. Report model, tokens, window, and percent **only** from that tool.
+3. Do **not** cite the built-in `session_status` tool's `Context: …/200k (…%)` line for Operator-facing answers.
+4. If the tool is unavailable, say runtime status is temporarily unavailable — do not invent 200k/24k figures.
+
+OpenClaw's `session_status` may show a 200k fallback denominator and different token totals; this plugin tool reads the same session-store projection as the Operator app bar (`GET /v1/conversations/{id}/agent/status`).
+
 ## Operator reminders (cron)
 
 LangLangBot supports two scheduling paths. Pick whichever matches the agent's available tools.

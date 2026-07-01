@@ -18,6 +18,12 @@ import {
   ensureLanglangbotSidecar,
   releaseLanglangbotSidecar,
 } from "./sidecar-manager.js";
+import { startManagementBridge } from "./management-bridge.js";
+import { buildLanglangbotSessionKey } from "./session-key.js";
+import {
+  resolveOpenclawSessionStorePath,
+  setOpenclawSessionStoreConfig,
+} from "./session-store.js";
 
 type InboundHandle = {
   conversationId: string;
@@ -61,6 +67,7 @@ export async function startLanglangbotGateway(
       startedByPlugin ? " (started by OpenClaw)" : ""
     }`,
   );
+  setOpenclawSessionStoreConfig(ctx.cfg.session?.store);
   await reportAgentRuntimeStatus(sidecar, ctx, runtimeReadiness(ctx));
 
   let approvalNativeLease: { dispose: () => void } | null = null;
@@ -77,6 +84,12 @@ export async function startLanglangbotGateway(
       `[langlangbot:${account.accountId}] No channelRuntime — approval.native disabled`,
     );
   }
+
+  const unsubscribeManagement = startManagementBridge({
+    sidecar,
+    account,
+    log: ctx.log,
+  });
 
   const unsubscribe = sidecar.subscribeInbound(
     (evt) => {
@@ -118,6 +131,7 @@ export async function startLanglangbotGateway(
   await new Promise<void>((resolve) => {
     const onAbort = () => {
       unsubscribe();
+      unsubscribeManagement();
       approvalNativeLease?.dispose();
       void reportAgentRuntimeStatus(sidecar, ctx, {
         ready: false,
@@ -157,7 +171,6 @@ async function handleInbound(
   const runtime = readiness.runtime;
   const account = ctx.account;
   const cfg = ctx.cfg;
-  const agentId = "default";
   const to = conversationTarget(inbound.conversationId);
   const verifiedSurfaceId = resolveVerifiedOperatorSurface({
     operatorSurfaceId: inbound.operatorSurfaceId,
@@ -171,10 +184,13 @@ async function handleInbound(
   const ownerAllowFrom = verifiedSurfaceId
     ? [openClawOwnerAllowFrom(verifiedSurfaceId)]
     : undefined;
-  const sessionKey = `agent:${agentId}:langlangbot:${account.accountId}:direct:${to}`;
+  const sessionKey = buildLanglangbotSessionKey({
+    accountId: account.accountId,
+    conversationId: inbound.conversationId,
+  });
 
   try {
-    const storePath = runtime.session.resolveStorePath(cfg.session?.store, { agentId });
+    const storePath = resolveOpenclawSessionStorePath(sessionKey);
     const ctxPayload = runtime.reply.finalizeInboundContext({
       Body: inbound.text,
       RawBody: inbound.text,
